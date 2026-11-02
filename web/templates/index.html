@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{if .Host}}{{.Host}}{{else}}tools{{end}}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+    * {
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+
+    html {
+      background: #0c0c0c;
+    }
+  </style>
+</head>
+
+<body class="text-neutral-100 min-h-screen flex flex-col antialiased bg-[#0c0c0c]">
+
+  <header class="border-b border-neutral-800">
+    <div class="max-w-3xl mx-auto px-6 h-14 flex items-center justify-between">
+      <a href="/" class="text-sm font-semibold text-white tracking-tight">
+        {{if .Host}}{{.Host}}{{else}}tools{{end}}
+      </a>
+      <a href="/healthz" class="text-xs text-neutral-500 hover:text-neutral-300 transition-colors">status</a>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-3xl mx-auto px-6 py-16 w-full">
+    <div class="mb-12">
+      <h1 class="text-2xl font-semibold text-white mb-2 tracking-tight">Tools</h1>
+      <p class="text-sm text-neutral-500">Simple utilities.</p>
+    </div>
+
+    <div class="space-y-px">
+      {{range .Tools}}
+      <a href="{{.Path}}"
+        class="flex items-center justify-between px-4 py-4 rounded-lg hover:bg-neutral-900 transition-colors group -mx-4">
+        <div class="flex items-center gap-4">
+          <div
+            class="w-8 h-8 rounded-md bg-neutral-800 border border-neutral-700 flex items-center justify-center text-neutral-400 flex-shrink-0 group-hover:border-neutral-600 transition-colors">
+            {{.Icon}}
+          </div>
+          <div>
+            <div class="text-sm font-medium text-white group-hover:text-white">{{.Title}}</div>
+            <div class="text-xs text-neutral-500 mt-0.5">{{.Description}}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 flex-shrink-0 ml-4">
+          <span class="text-xs text-neutral-600 hidden sm:block">{{.Category}}</span>
+          <svg class="w-4 h-4 text-neutral-700 group-hover:text-neutral-400 transition-colors" fill="none"
+            stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </a>
+      {{end}}
+    </div>
+  </main>
+
+  <footer class="border-t border-neutral-800 py-6">
+    <div class="max-w-3xl mx-auto px-6">
+      <p class="text-xs text-neutral-600">{{if .Host}}{{.Host}}{{else}}tools{{end}}</p>
+    </div>
+  </footer>
+
+</body>
+
+</html>

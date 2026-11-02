@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Video to GIF — {{if .Host}}{{.Host}}{{else}}tools{{end}}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    * {
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    html {
+      background: #0c0c0c;
+    }
+
+    /* Drag-over highlight */
+    #dropzone.drag-over {
+      border-color: #525252;
+      background: #1a1a1a;
+    }
+
+    /* Video player */
+    #videoElement {
+      display: block;
+      width: 100%;
+      max-height: 360px;
+      object-fit: contain;
+      background: #000;
+    }
+
+    /* Custom radio card */
+    .seg-item input:checked+.seg-label {
+      background: #262626;
+      border-color: #525252;
+      color: #fff;
+    }
+
+    .seg-label {
+      display: block;
+      text-align: center;
+      padding: 6px 0;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #737373;
+      cursor: pointer;
+      transition: all 0.1s;
+      user-select: none;
+    }
+
+    .seg-label:hover {
+      border-color: #404040;
+      color: #a3a3a3;
+    }
+  </style>
+</head>
+
+<body class="text-neutral-100 min-h-screen flex flex-col antialiased bg-[#0c0c0c]">
+
+  <!-- Nav -->
+  <header class="border-b border-neutral-800">
+    <div class="max-w-3xl mx-auto px-6 h-14 flex items-center gap-3">
+      <a href="/" class="text-xs text-neutral-500 hover:text-neutral-300 transition-colors flex items-center gap-1.5">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+        {{if .Host}}{{.Host}}{{else}}tools{{end}}
+      </a>
+      <span class="text-neutral-700 text-xs">/</span>
+      <span class="text-xs text-neutral-300 font-medium">video to gif</span>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-3xl mx-auto px-6 py-10 w-full">
+
+    <!-- Error / warning banner -->
+    <div id="alertBanner" class="hidden mb-6 px-4 py-3 rounded-lg border text-sm flex items-start gap-3">
+      <span id="alertIcon" class="flex-shrink-0 mt-px text-xs font-mono">!</span>
+      <div class="flex-1 min-w-0">
+        <span id="alertTitle" class="font-medium"></span>
+        <span id="alertMessage" class="text-neutral-400 ml-1.5"></span>
+      </div>
+      <button onclick="dismissAlert()" class="text-neutral-500 hover:text-neutral-300 flex-shrink-0 text-xs">✕</button>
+    </div>
+
+    <form id="convertForm" onsubmit="handleConvert(event)" class="space-y-6">
+
+      <!-- Upload zone -->
+      <div>
+        <label class="block text-xs font-medium text-neutral-400 mb-2">Video file</label>
+        <div id="dropzone"
+          class="relative border border-dashed border-neutral-700 rounded-lg cursor-pointer transition-all"
+          ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+          <input type="file" id="videoFile" name="video" accept="video/mp4,video/webm,video/quicktime,video/x-matroska"
+            class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" onchange="onFileSelected(this)" />
+
+          <!-- Empty state -->
+          <div id="dropzoneEmpty"
+            class="flex flex-col items-center justify-center py-12 gap-2 pointer-events-none select-none">
+            <svg class="w-6 h-6 text-neutral-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <span class="text-sm text-neutral-500">Drop video here or <span
+                class="text-neutral-300 underline underline-offset-2">browse</span></span>
+            <span class="text-xs text-neutral-600">MP4, WebM, MOV · max 100 MB</span>
+          </div>
+
+          <!-- File selected state -->
+          <div id="dropzoneFilled" class="hidden items-center gap-3 px-4 py-3 pointer-events-none select-none">
+            <div
+              class="w-8 h-8 rounded bg-neutral-800 border border-neutral-700 flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p id="fileName" class="text-sm text-neutral-200 truncate font-medium"></p>
+              <p id="fileSize" class="text-xs text-neutral-500 mono mt-0.5"></p>
+            </div>
+            <span class="text-xs text-neutral-600 flex-shrink-0">click to replace</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Video preview + timestamp controls (hidden until file loaded) -->
+      <div id="playerSection" class="hidden space-y-3">
+        <div class="rounded-lg overflow-hidden border border-neutral-800 bg-black">
+          <video id="videoElement" controls></video>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="setStartTimeFromVideo()"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 hover:border-neutral-600 text-xs text-neutral-300 transition-all">
+            <svg class="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Set start
+          </button>
+          <button type="button" onclick="setEndTimeFromVideo()"
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 hover:border-neutral-600 text-xs text-neutral-300 transition-all">
+            <svg class="w-3.5 h-3.5 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3l14 9-14 9V3z" />
+            </svg>
+            Set end
+          </button>
+          <span class="ml-auto mono text-xs text-neutral-600">
+            <span id="currentPlayheadTime">0.00</span>s / <span id="totalVideoDuration">0.00</span>s
+          </span>
+        </div>
+      </div>
+
+      <!-- Settings row -->
+      <div class="grid grid-cols-2 gap-4">
+        <!-- Start time -->
+        <div>
+          <label class="block text-xs font-medium text-neutral-400 mb-2" for="startTime">Start (s)</label>
+          <input type="number" id="startTime" name="start" value="0.00" min="0" step="any"
+            class="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-100 mono focus:outline-none focus:border-neutral-500 transition-colors placeholder-neutral-600"
+            oninput="syncPreviewTimers()" />
+        </div>
+
+        <!-- End time -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-xs font-medium text-neutral-400" for="endTime">End (s)</label>
+            <span id="clipDurationBadge" class="text-xs text-neutral-500 mono">max 20s</span>
+          </div>
+          <input type="number" id="endTime" value="5.00" min="0" step="any"
+            class="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-100 mono focus:outline-none focus:border-neutral-500 transition-colors"
+            oninput="syncPreviewTimers()" />
+          <input type="hidden" id="duration" name="duration" value="5.0" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <!-- Width -->
+        <div>
+          <label class="block text-xs font-medium text-neutral-400 mb-2">Width</label>
+          <div class="grid grid-cols-4 gap-1.5">
+            <label class="seg-item"><input type="radio" name="widthPreset" value="320" class="sr-only"
+                onchange="onWidthPresetChange(this.value)" /><span class="seg-label">320</span></label>
+            <label class="seg-item"><input type="radio" name="widthPreset" value="480" class="sr-only" checked
+                onchange="onWidthPresetChange(this.value)" /><span class="seg-label">480</span></label>
+            <label class="seg-item"><input type="radio" name="widthPreset" value="640" class="sr-only"
+                onchange="onWidthPresetChange(this.value)" /><span class="seg-label">640</span></label>
+            <label class="seg-item"><input type="radio" name="widthPreset" value="0" id="widthOrigRadio" class="sr-only"
+                onchange="onWidthPresetChange(this.value)" /><span class="seg-label truncate"
+                id="widthOrigLabel">Original</span></label>
+          </div>
+          <input type="hidden" id="finalWidth" name="width" value="480" />
+        </div>
+
+        <!-- FPS -->
+        <div>
+          <label class="block text-xs font-medium text-neutral-400 mb-2">FPS</label>
+          <div class="grid grid-cols-4 gap-1.5">
+            <label class="seg-item"><input type="radio" name="fps" value="10" class="sr-only" /><span
+                class="seg-label">10</span></label>
+            <label class="seg-item"><input type="radio" name="fps" value="15" class="sr-only" checked /><span
+                class="seg-label">15</span></label>
+            <label class="seg-item"><input type="radio" name="fps" value="20" class="sr-only" /><span
+                class="seg-label">20</span></label>
+            <label class="seg-item"><input type="radio" name="fps" value="24" class="sr-only" /><span
+                class="seg-label">24</span></label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Advanced Options -->
+      <details class="group pt-2 border-t border-neutral-800">
+        <summary
+          class="flex items-center gap-2 cursor-pointer text-xs font-medium text-neutral-400 hover:text-neutral-200 transition-colors select-none py-1">
+          <svg class="w-3.5 h-3.5 text-neutral-500 group-open:rotate-90 transition-transform" fill="none"
+            stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+          </svg>
+          Advanced options
+        </summary>
+
+        <div class="pt-4 space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <!-- Max Colors -->
+            <div>
+              <label class="block text-xs font-medium text-neutral-400 mb-2">Colors</label>
+              <div class="grid grid-cols-3 gap-1.5">
+                <label class="seg-item"><input type="radio" name="colors" value="64" class="sr-only" /><span
+                    class="seg-label">64</span></label>
+                <label class="seg-item"><input type="radio" name="colors" value="128" class="sr-only" checked /><span
+                    class="seg-label">128</span></label>
+                <label class="seg-item"><input type="radio" name="colors" value="256" class="sr-only" /><span
+                    class="seg-label">256</span></label>
+              </div>
+            </div>
+
+            <!-- Dithering -->
+            <div>
+              <label class="block text-xs font-medium text-neutral-400 mb-2">Dither</label>
+              <div class="grid grid-cols-3 gap-1.5">
+                <label class="seg-item"><input type="radio" name="dither" value="bayer" class="sr-only" checked /><span
+                    class="seg-label">Bayer</span></label>
+                <label class="seg-item"><input type="radio" name="dither" value="floyd_steinberg"
+                    class="sr-only" /><span class="seg-label">Floyd</span></label>
+                <label class="seg-item"><input type="radio" name="dither" value="none" class="sr-only" /><span
+                    class="seg-label">None</span></label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Custom Width -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-medium text-neutral-400" for="customWidth">Custom width</label>
+              <span class="text-xs text-neutral-600">100 – 1920 px (overrides preset)</span>
+            </div>
+            <input type="number" id="customWidth" placeholder="e.g. 720 (leave empty to use preset above)" min="100"
+              max="1920"
+              class="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-sm text-neutral-100 mono focus:outline-none focus:border-neutral-500 transition-colors placeholder-neutral-600"
+              oninput="onCustomWidthInput(this.value)" />
+          </div>
+
+          <!-- Lossy Compression Slider -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <label class="text-xs font-medium text-neutral-400" for="lossySlider">Lossy compression</label>
+              <span id="lossyLabel" class="text-xs mono text-neutral-500">Off</span>
+            </div>
+            <input type="range" id="lossySlider" name="lossy" min="0" max="100" step="5" value="0"
+              class="w-full accent-white bg-neutral-800 rounded-lg h-1.5 cursor-pointer"
+              oninput="onLossyChange(this.value)" />
+          </div>
+        </div>
+      </details>
+
+      <!-- Submit -->
+      <button type="submit" id="submitBtn"
+        class="w-full py-2.5 rounded-lg bg-white hover:bg-neutral-100 text-black text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+        <svg id="btnSpinner" class="hidden animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <span id="btnText">Convert to GIF</span>
+      </button>
+
+    </form>
+
+    <!-- Result (hidden until done) -->
+    <div id="resultCard" class="hidden mt-8 space-y-4">
+      <div class="h-px bg-neutral-800"></div>
+
+      <div class="flex items-center justify-between">
+        <span class="text-sm font-medium text-neutral-200">Result</span>
+        <span id="gifSizeBadge" class="mono text-xs text-neutral-500"></span>
+      </div>
+
+      <div
+        class="rounded-lg overflow-hidden border border-neutral-800 bg-neutral-950 flex items-center justify-center p-3">
+        <img id="gifImage" src="" alt="Generated GIF" class="max-h-96 object-contain rounded" />
+      </div>
+
+      <div class="flex gap-3">
+        <a id="downloadBtn" href="#" download="clip.gif"
+          class="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-white hover:bg-neutral-100 text-black text-sm font-semibold transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Download
+        </a>
+        <button type="button" onclick="resetForm()"
+          class="px-4 py-2.5 rounded-lg border border-neutral-700 hover:border-neutral-600 text-sm text-neutral-400 hover:text-neutral-200 transition-colors">
+          Convert another
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="border-t border-neutral-800 py-6">
+    <div class="max-w-3xl mx-auto px-6">
+      <p class="text-xs text-neutral-600">{{if .Host}}{{.Host}}{{else}}tools{{end}}</p>
+    </div>
+  </footer>
+
+  <script>
+    let selectedFile = null;
+    let videoUrl = null;
+    const video = document.getElementById('videoElement');
+
+    // Drag and drop
+    function onDragOver(e) {
+      e.preventDefault();
+      document.getElementById('dropzone').classList.add('drag-over');
+    }
+    function onDragLeave(e) {
+      document.getElementById('dropzone').classList.remove('drag-over');
+    }
+    function onDrop(e) {
+      e.preventDefault();
+      document.getElementById('dropzone').classList.remove('drag-over');
+      const files = e.dataTransfer.files;
+      if (files && files.length > 0) {
+        try {
+          document.getElementById('videoFile').files = files;
+        } catch (_) { }
+        loadFile(files[0]);
+      }
+    }
+
+    function onFileSelected(input) {
+      if (!input.files || input.files.length === 0) return;
+      loadFile(input.files[0]);
+    }
+
+    function loadFile(file) {
+      selectedFile = file;
+
+      document.getElementById('dropzoneEmpty').classList.add('hidden');
+      const filled = document.getElementById('dropzoneFilled');
+      filled.classList.remove('hidden');
+      filled.classList.add('flex');
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileSize').textContent = formatBytes(file.size);
+
+      if (videoUrl) URL.revokeObjectURL(videoUrl);
+      videoUrl = URL.createObjectURL(file);
+      video.src = videoUrl;
+      video.load();
+      document.getElementById('playerSection').classList.remove('hidden');
+
+      video.onloadedmetadata = () => {
+        const total = video.duration || 0;
+        document.getElementById('totalVideoDuration').textContent = total.toFixed(2);
+
+        // Auto-detect & fill start (0.00) and end (up to 20s or total video duration)
+        document.getElementById('startTime').value = '0.00';
+        const initialEnd = total > 0 ? Math.min(20.0, total) : 5.0;
+        document.getElementById('endTime').value = initialEnd.toFixed(2);
+        syncPreviewTimers();
+
+        const origLabel = document.getElementById('widthOrigLabel');
+        if (video.videoWidth) {
+          origLabel.textContent = `Orig (${video.videoWidth})`;
+          origLabel.title = `${video.videoWidth} × ${video.videoHeight} px`;
+        }
+      };
+
+      video.ontimeupdate = () => {
+        document.getElementById('currentPlayheadTime').textContent = video.currentTime.toFixed(2);
+      };
+    }
+
+    function setStartTimeFromVideo() {
+      document.getElementById('startTime').value = video.currentTime.toFixed(2);
+      syncPreviewTimers();
+    }
+
+    function setEndTimeFromVideo() {
+      document.getElementById('endTime').value = video.currentTime.toFixed(2);
+      syncPreviewTimers();
+    }
+
+    function syncPreviewTimers() {
+      const start = parseFloat(document.getElementById('startTime').value) || 0;
+      let end = parseFloat(document.getElementById('endTime').value) || 0;
+
+      let dur = end - start;
+      if (dur < 0.1) dur = 0.1;
+      if (dur > 20.0) dur = 20.0;
+
+      document.getElementById('duration').value = dur.toFixed(3);
+      const badge = document.getElementById('clipDurationBadge');
+      if (badge) {
+        badge.textContent = `${dur.toFixed(2)}s clip (max 20s)`;
+      }
+    }
+
+    function formatBytes(b) {
+      if (b === 0) return '0 B';
+      const k = 1024, s = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(b) / Math.log(k));
+      return (b / Math.pow(k, i)).toFixed(1) + ' ' + s[i];
+    }
+
+    function showAlert(title, message, isError) {
+      const banner = document.getElementById('alertBanner');
+      if (isError) {
+        banner.className = 'mb-6 px-4 py-3 rounded-lg border border-red-900/60 bg-red-950/40 text-red-300 text-sm flex items-start gap-3';
+      } else {
+        banner.className = 'mb-6 px-4 py-3 rounded-lg border border-amber-900/60 bg-amber-950/40 text-amber-300 text-sm flex items-start gap-3';
+      }
+      document.getElementById('alertTitle').textContent = title;
+      document.getElementById('alertMessage').textContent = message;
+      banner.classList.remove('hidden');
+    }
+
+    function dismissAlert() {
+      document.getElementById('alertBanner').classList.add('hidden');
+    }
+
+    async function handleConvert(e) {
+      e.preventDefault();
+      dismissAlert();
+
+      if (!selectedFile) {
+        showAlert('No file selected.', 'Drop or choose a video file first.', true);
+        return;
+      }
+
+      const submitBtn = document.getElementById('submitBtn');
+      const btnSpinner = document.getElementById('btnSpinner');
+      const btnText = document.getElementById('btnText');
+      submitBtn.disabled = true;
+      btnSpinner.classList.remove('hidden');
+      btnText.textContent = 'Converting…';
+
+      try {
+        const formData = new FormData(document.getElementById('convertForm'));
+        if (selectedFile) {
+          formData.set('video', selectedFile, selectedFile.name);
+        }
+        const res = await fetch('/gif/convert', { method: 'POST', body: formData });
+
+        if (!res.ok) {
+          const ct = res.headers.get('content-type') || '';
+          let msg = 'Conversion failed.';
+          if (ct.includes('application/json')) {
+            const d = await res.json();
+            msg = d.error || msg;
+          } else {
+            msg = await res.text();
+          }
+          showAlert(res.status === 429 ? 'Rate limited.' : 'Error ' + res.status + '.', msg, res.status !== 429);
+          return;
+        }
+
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+
+        document.getElementById('gifImage').src = url;
+        document.getElementById('gifSizeBadge').textContent = formatBytes(blob.size);
+
+        const dl = document.getElementById('downloadBtn');
+        dl.href = url;
+        const base = selectedFile.name.replace(/\.[^.]+$/, '') || 'clip';
+        dl.download = base + '.gif';
+
+        const card = document.getElementById('resultCard');
+        card.classList.remove('hidden');
+        card.scrollIntoView({ behavior: 'smooth' });
+
+      } catch (err) {
+        showAlert('Network error.', err.message || 'Could not reach server.', true);
+      } finally {
+        submitBtn.disabled = false;
+        btnSpinner.classList.add('hidden');
+        btnText.textContent = 'Convert to GIF';
+      }
+    }
+
+    function onWidthPresetChange(val) {
+      document.getElementById('customWidth').value = '';
+      document.getElementById('finalWidth').value = val;
+    }
+
+    function onCustomWidthInput(val) {
+      const parsed = parseInt(val, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        document.getElementById('finalWidth').value = parsed;
+        document.querySelectorAll('input[name="widthPreset"]').forEach(r => r.checked = false);
+      } else {
+        const checked = document.querySelector('input[name="widthPreset"]:checked');
+        if (checked) {
+          document.getElementById('finalWidth').value = checked.value;
+        } else {
+          const defRadio = document.querySelector('input[name="widthPreset"][value="480"]');
+          if (defRadio) defRadio.checked = true;
+          document.getElementById('finalWidth').value = '480';
+        }
+      }
+    }
+
+    function onLossyChange(val) {
+      const lbl = document.getElementById('lossyLabel');
+      lbl.textContent = val == 0 ? 'Off' : val;
+    }
+
+    function resetForm() {
+      document.getElementById('resultCard').classList.add('hidden');
+      document.getElementById('dropzoneEmpty').classList.remove('hidden');
+      const filled = document.getElementById('dropzoneFilled');
+      filled.classList.add('hidden');
+      filled.classList.remove('flex');
+      document.getElementById('playerSection').classList.add('hidden');
+      document.getElementById('videoFile').value = '';
+      document.getElementById('startTime').value = '0.00';
+      document.getElementById('endTime').value = '5.00';
+      document.getElementById('duration').value = '5.0';
+      const badge = document.getElementById('clipDurationBadge');
+      if (badge) badge.textContent = 'max 20s';
+      document.getElementById('widthOrigLabel').textContent = 'Original';
+      document.getElementById('customWidth').value = '';
+      const defRadio = document.querySelector('input[name="widthPreset"][value="480"]');
+      if (defRadio) defRadio.checked = true;
+      document.getElementById('finalWidth').value = '480';
+      const lossySlider = document.getElementById('lossySlider');
+      if (lossySlider) {
+        lossySlider.value = '0';
+        onLossyChange(0);
+      }
+      if (videoUrl) { URL.revokeObjectURL(videoUrl); videoUrl = null; }
+      video.src = '';
+      selectedFile = null;
+      dismissAlert();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
+</body>
+
+</html>
